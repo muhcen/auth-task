@@ -1,0 +1,33 @@
+version: '3'
+services:
+    db:
+        image: mongo:5.0.12
+        container_name: mongo
+        ports:
+            - '27017:27017'
+        restart: always
+
+    rabbitmq:
+        image: rabbitmq:3.11-management
+        container_name: rabbitmq
+        ports:
+            - '5672:5672'
+        restart: always
+
+    auth_service:
+        image: auth_service
+        build: ./auth-microservice
+        container_name: auth_service
+        depends_on:
+            - db
+        restart: always
+
+    core:
+        image: core
+        build: ./core
+        container_name: core
+        ports:
+            - '3000:3000'
+        depends_on:
+            - auth_service
+        restart: always
