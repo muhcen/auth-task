@@ -5,6 +5,8 @@ import { LoginAuthDto } from './dto/login-auth.dto';
 import { User } from 'src/users/entities/user.entity';
 import { CreateUserDto } from 'src/users/dto/create-user.dto';
 import { RpcException } from '@nestjs/microservices';
+import * as bcrypt from 'bcrypt';
+import { Token } from './interfaces/token.interface';
 
 @Injectable()
 export class AuthService {
@@ -13,34 +15,25 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email, password): Promise<User> {
-    try {
-      const user = await this.usersService.findOneByEmail(email);
-      if (user && user.password === password) {
-        return user;
-      }
-      return null;
-    } catch (error) {
-      return error;
-    }
-  }
-
-  createToken(user: User) {
+  createToken(user: User): Token {
     const payload = { sub: user._id, email: user.email };
 
     const access_token = this.jwtService.sign(payload);
 
-    console.log(access_token);
     return {
       access_token,
     };
   }
-  async login(loginAuthDto: LoginAuthDto): Promise<any> {
+  async login(loginAuthDto: LoginAuthDto): Promise<Token> {
     try {
       const { email, password } = loginAuthDto;
-      const user = await this.validateUser(email, password);
 
-      if (user === null || (user && user.password !== password))
+      const user = await this.usersService.findOneByEmail(email);
+
+      if (!user) throw new RpcException('email or password not correct.');
+
+      const passwordIsMach = await bcrypt.compare(password, user.password);
+      if (!passwordIsMach)
         throw new RpcException('email or password not correct.');
 
       return this.createToken(user);
@@ -49,14 +42,14 @@ export class AuthService {
     }
   }
 
-  async createUser(createUserDto: CreateUserDto) {
+  async createUser(createUserDto: CreateUserDto): Promise<Token> {
     try {
       const { email } = createUserDto;
 
       const userExists = await this.usersService.findOneByEmail(email);
 
       if (userExists != null) {
-        return new RpcException('user with this email already exists');
+        throw new RpcException('user with this email already exists');
       }
 
       const user = await this.usersService.createUser(createUserDto);
